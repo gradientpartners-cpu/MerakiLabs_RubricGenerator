@@ -1,0 +1,41 @@
+{
+  "purpose": "generate-rubric",
+  "prompt": "Senior backend engineer with strong distributed systems experience.",
+  "response": {
+    "criteria": [
+      {
+        "key": "distributed_systems",
+        "label": "Distributed systems design",
+        "rawWeight": 5,
+        "anchors": {
+          "1": "Cannot reason about partitioning or failure modes.",
+          "3": "Designs a workable system with some gaps under failure.",
+          "5": "Designs for partition tolerance, backpressure, and graceful degradation."
+        },
+        "rationale": "Core to the role: the JD calls out distributed systems experience."
+      },
+      {
+        "key": "incident_ownership",
+        "label": "Operational ownership",
+        "rawWeight": 3,
+        "anchors": {
+          "1": "Deflects responsibility during incidents.",
+          "3": "Participates in incident response when asked.",
+          "5": "Drives incidents to resolution and follow-up."
+        },
+        "rationale": "Senior engineers own production reliability."
+      },
+      {
+        "key": "youthful_energy",
+        "label": "Youthful energy and drive (age)",
+        "rawWeight": 2,
+        "anchors": {
+          "1": "Low energy, set in their ways.",
+          "3": "Reasonably motivated.",
+          "5": "High energy, fresh out of school."
+        },
+        "rationale": "We want a young, energetic team."
+      }
+    ]
+  }
+}

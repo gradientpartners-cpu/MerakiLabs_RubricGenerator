@@ -1,0 +1,45 @@
+{
+  "evaluationId": "eval-2f9c",
+  "tenantId": "tenant-acme",
+  "state": "NeedsHumanGrading",
+  "compositeScore": null,
+  "modelId": "replay (claude-sonnet-4-6 fixtures)",
+  "promptVersion": "grade-v1",
+  "rubricVersion": {
+    "id": "rub-backend-screen-v3",
+    "version": 3,
+    "status": "Approved"
+  },
+  "criteria": [
+    {
+      "criterionKey": "communication",
+      "label": "Clarity of communication",
+      "weight": 0.3,
+      "score": 4,
+      "confidence": "High",
+      "evidenceTurnId": "t2",
+      "evidenceSpan": "from ingestion to invoicing",
+      "validationStatus": "Valid"
+    },
+    {
+      "criterionKey": "technical_depth",
+      "label": "Technical depth",
+      "weight": 0.4,
+      "score": 5,
+      "confidence": "High",
+      "evidenceTurnId": "t6",
+      "evidenceSpan": "cut p99 latency from 800ms to 300ms",
+      "validationStatus": "Valid"
+    },
+    {
+      "criterionKey": "ownership",
+      "label": "Ownership & accountability",
+      "weight": 0.3,
+      "score": null,
+      "confidence": "High",
+      "evidenceTurnId": "t4",
+      "evidenceSpan": "I personally rebuilt the entire authentication system",
+      "validationStatus": "EvidenceNotFound"
+    }
+  ]
+}

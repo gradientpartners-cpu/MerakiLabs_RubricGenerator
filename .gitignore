@@ -1,0 +1,25 @@
+# .NET build output
+bin/
+obj/
+*.user
+artifacts/
+
+# Test / coverage
+[Tt]est[Rr]esults/
+*.trx
+*.coverage
+coverage.*.json
+
+# Rider / VS
+.idea/
+.vs/
+*.suo
+
+# Secrets / local config
+*.env
+.env
+appsettings.*.local.json
+
+# OS / editor
+.DS_Store
+.vscode/

@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RubricGrader", "RubricGrader\RubricGrader.csproj", "{B442C4C2-603D-4C2B-8871-5559B6E5B186}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RubricGrader.Tests", "RubricGrader.Tests\RubricGrader.Tests.csproj", "{4F80E00B-A60F-4F06-A00F-CDE16ECD8846}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B442C4C2-603D-4C2B-8871-5559B6E5B186}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B442C4C2-603D-4C2B-8871-5559B6E5B186}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B442C4C2-603D-4C2B-8871-5559B6E5B186}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B442C4C2-603D-4C2B-8871-5559B6E5B186}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F80E00B-A60F-4F06-A00F-CDE16ECD8846}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F80E00B-A60F-4F06-A00F-CDE16ECD8846}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F80E00B-A60F-4F06-A00F-CDE16ECD8846}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F80E00B-A60F-4F06-A00F-CDE16ECD8846}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
