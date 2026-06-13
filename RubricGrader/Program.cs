@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using RubricGrader.Adapters;
 using RubricGrader.Api;
+using RubricGrader.Grading;
 using RubricGrader.Repository;
 using RubricGrader.Worker;
 
@@ -64,6 +65,14 @@ if (usePostgres)
     var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<RubricDbContext>>();
     using var db = factory.CreateDbContext();
     db.Database.EnsureCreated();
+}
+else
+{
+    // Seed the canonical approved rubric for the zero-credential grade demo (POST /evaluations
+    // against rub-backend-screen-v3). Demo-path only: the postgres path stays clean and expects
+    // rubrics to arrive via the real /jd -> /approve lifecycle.
+    var rubrics = app.Services.GetRequiredService<IRubricStore>();
+    await rubrics.SaveRubricAsync(GradeDemo.Rubric);
 }
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", llmBackend = backend, persistence }));

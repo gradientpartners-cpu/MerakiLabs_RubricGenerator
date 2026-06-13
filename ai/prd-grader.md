@@ -120,14 +120,23 @@ which injects the tenant scope (CLAUDE.md §3.6).
 - `Worker/` — `BackgroundService` + `Channel<T>` job loop.
 - `Api/` — minimal-API endpoint mapping + stubbed auth-context.
 
-## 6. API surface (slice)
+## 6. API surface (slice) — as built
 - `POST /jd` → generate a **draft** rubric from a JD (generator, thin).
 - `POST /rubrics/{id}/approve` → freeze draft as an immutable versioned rubric.
-- `POST /evaluations` → `{evaluation_id, state: queued}` (tenant from auth ctx).
-- `GET /evaluations/{id}` → result + per-criterion breakdown + audit pointer.
-- `GET /evaluations/{id}/audit` → the audit trail for that evaluation.
-- `GET /fairness/adverse-impact?rubric_version_id=...` → per-group selection rate
-  + four-fifths flags (synthetic data; clearly labelled non-production).
+- `POST /evaluations` → grade an artifact against an approved rubric and return the full
+  result (composite + per-criterion scores/statuses) **synchronously, in one call**
+  (tenant from the stubbed auth ctx). This is the **demo trigger**: it runs the
+  `GradePipeline` inline so the caught hallucination is visible live. The
+  **production/scale** path is the async route already built under `Worker/` — a bounded
+  `Channel<T>` (`IGradeQueue`) drained by a `GradingWorker` `BackgroundService` — left
+  intact; the sync endpoint just bypasses the queue.
+- `GET /applications/{id}` → result + per-criterion breakdown.
+- `GET /applications/{id}/audit` → the reconstructable audit chain for that evaluation.
+  (Read routes use `/applications` — the grade store's resource name. The grade *trigger*
+  is `/evaluations`; reads/writes were not renamed to avoid churn.)
+- `GET /fairness/adverse-impact` → per-group selection rate + four-fifths flags over
+  seeded synthetic data (clearly labelled non-production). Computes over the seed only;
+  there is no `rubric_version_id` parameter (per-rubric slicing stays design-doc-only, §11).
 
 ## 7. Anti-hallucination & fairness mechanics (the crux)
 - **Validation** (CLAUDE.md §3.2): normalize (whitespace/quotes/case) → exact

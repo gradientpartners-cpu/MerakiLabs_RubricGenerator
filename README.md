@@ -13,15 +13,22 @@ generator** sits on top to demonstrate the end-to-end pipeline.
 ```
 JD ──▶ POST /jd ──▶ draft rubric ──▶ POST /rubrics/{id}/approve ──▶ approved rubric
                                                                         │
-candidate transcript ──▶ POST /evaluations ──▶ async grade ────────────┘
+candidate transcript ──▶ POST /evaluations ──▶ grade ──────────────────┘
         │
         ▼
   redact PII ▶ per-criterion LLM judgment ▶ validate evidence ▶ deterministic
   weighted composite ▶ persisted result + audit trail
         │
         ▼
-  GET /evaluations/{id}   ·   GET /evaluations/{id}/audit
+  GET /applications/{id}   ·   GET /applications/{id}/audit
 ```
+
+> `POST /evaluations` grades **synchronously** and returns the full result in one call —
+> the demo path, so the caught hallucination is visible live (see "See it work" below). The
+> **production/scale** design is the async route already built under `Worker/`: a request
+> enqueues onto a bounded `Channel<T>` and a `GradingWorker` `BackgroundService` grades out
+> of band. Both call the same self-contained `GradePipeline`; the sync endpoint just runs it
+> inline. (The read routes are `/applications/{id}` — the grade store's resource name.)
 
 ## What makes a grade trustworthy (the crux)
 - **The LLM never computes the score.** Per criterion it returns `{score, verbatim
@@ -64,7 +71,7 @@ Llm__Backend=live ANTHROPIC_API_KEY=sk-... dotnet run --project RubricGrader
 > `appsettings.json` (`Password=postgres`) is a throwaway **local-dev default**, not a
 > real credential — it is only read on the opt-in `Persistence:Backend=postgres` path.
 
-## See it work — the four demo moments
+## See it work — the demo moments
 
 **1 + 2. The grader (deep slice): a real grade, and a caught hallucination.**
 The grader is proven by its end-to-end test suite (no server needed):
@@ -81,7 +88,36 @@ dotnet test --filter "FullyQualifiedName~GradePipelineTests"
   (`EvidenceNotFound`), the score is dropped, and the run goes to
   `NeedsHumanGrading` — it never fabricates a grade.
 
-**3. Adverse impact (four-fifths rule) tripping.** With the server running:
+**3. The caught hallucination, live over HTTP.** With the server running, grade the
+canonical transcript against the seeded approved rubric in **one synchronous call**:
+
+```bash
+curl -s -X POST http://localhost:5026/evaluations \
+  -H 'Content-Type: application/json' -H 'X-Tenant-Id: tenant-acme' \
+  -d '{
+    "rubricVersionId": "rub-backend-screen-v3",
+    "artifactId": "artifact-7731",
+    "turns": [
+      {"turnId":"t1","speaker":"interviewer","text":"Walk me through a system you owned end to end."},
+      {"turnId":"t2","speaker":"candidate","text":"I owned our billing pipeline for two years, from ingestion to invoicing."},
+      {"turnId":"t3","speaker":"interviewer","text":"How did you handle a major incident?"},
+      {"turnId":"t4","speaker":"candidate","text":"During a Postgres failover I coordinated the rollback and wrote the postmortem myself."},
+      {"turnId":"t5","speaker":"interviewer","text":"Tell me about scaling."},
+      {"turnId":"t6","speaker":"candidate","text":"We moved to a sharded cluster and cut p99 latency from 800ms to 300ms."}
+    ]
+  }'
+```
+
+The response grades `communication` (4) and `technical_depth` (5) from verbatim quotes,
+but the `ownership` criterion cites *"I personally rebuilt the entire authentication
+system"* — absent from turn t4 — so it is rejected (`EvidenceNotFound`), its score
+dropped, `compositeScore` is `null`, and `state` is `NeedsHumanGrading`. Take the
+returned `id` and `GET /applications/{id}/audit` to see the full reconstructable chain
+(this is exactly [`examples/audit-trace-example.json`](examples/audit-trace-example.json)).
+This is the **sync demo path**; the same `GradePipeline` runs out of band on the async
+`Channel<T>` + `GradingWorker` route built for production scale.
+
+**4. Adverse impact (four-fifths rule) tripping.** With the server running:
 
 ```bash
 curl http://localhost:5026/fairness/adverse-impact
@@ -89,9 +125,10 @@ curl http://localhost:5026/fairness/adverse-impact
 
 Computes the selection rate per group over seeded synthetic data and flags any group
 below 80% of the top group's rate. `group_c` (ratio 0.50) trips the flag; `anyFlagged`
-is `true`.
+is `true`. (The endpoint computes over the seed only — there is no `rubric_version_id`
+parameter; per-rubric slicing stays design-doc-only, DESIGN.md §11.)
 
-**4. (bonus) A proxy attribute caught at rubric approval.** Generate a draft rubric,
+**5. (bonus) A proxy attribute caught at rubric approval.** Generate a draft rubric,
 then approve it — the protected-attribute denylist flags a criterion and the flag is
 resurfaced at approval so the human gate never signs off blind:
 

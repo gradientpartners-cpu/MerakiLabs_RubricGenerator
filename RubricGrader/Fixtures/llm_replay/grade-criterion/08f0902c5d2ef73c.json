@@ -1,0 +1,12 @@
+{
+  "purpose": "grade-criterion",
+  "prompt": "You are grading ONE rubric criterion of a candidate interview transcript.\nJudge only the criterion below. Do not score any other dimension.\n\nCRITERION: communication \u2014 Clarity of communication\nSCORE ANCHORS (1 = weakest, 5 = strongest):\n  1: Rambling or vague; hard to follow.\n  3: Generally clear with some unfocused passages.\n  5: Crisp, well-structured, and easy to follow.\n\nTRANSCRIPT (already redacted; cite by turn id):\n  [t1] interviewer: Walk me through a system you owned end to end.\n  [t2] candidate: I owned our billing pipeline for two years, from ingestion to invoicing.\n  [t3] interviewer: How did you handle a major incident?\n  [t4] candidate: During a Postgres failover I coordinated the rollback and wrote the postmortem myself.\n  [t5] interviewer: Tell me about scaling.\n  [t6] candidate: We moved to a sharded cluster and cut p99 latency from 800ms to 300ms.\n\nHARD RULES:\n- Evidence MUST be a verbatim substring copied from exactly ONE transcript turn.\n- Do NOT paraphrase, summarise, or combine turns. Copy the words exactly.\n- If the transcript lacks evidence to judge this criterion, ABSTAIN.\n- Never invent a quote, a turn id, or a score. Abstaining is expected and safe.\n- \u0027confidence\u0027 is your own triage signal; use \u0027low\u0027 when unsure.\n\nRespond with ONLY this JSON object:\n{\n  \u0022criterionKey\u0022: \u0022communication\u0022,\n  \u0022abstained\u0022: \u003Ctrue|false\u003E,\n  \u0022score\u0022: \u003Cinteger 1-5, or null if abstained\u003E,\n  \u0022evidence\u0022: \u0022\u003Cverbatim substring of the cited turn, or null if abstained\u003E\u0022,\n  \u0022turnId\u0022: \u0022\u003Cthe cited turn id, or null if abstained\u003E\u0022,\n  \u0022confidence\u0022: \u0022\u003Chigh|medium|low\u003E\u0022\n}",
+  "response": {
+    "criterionKey": "communication",
+    "abstained": false,
+    "score": 4,
+    "evidence": "from ingestion to invoicing",
+    "turnId": "t2",
+    "confidence": "high"
+  }
+}
