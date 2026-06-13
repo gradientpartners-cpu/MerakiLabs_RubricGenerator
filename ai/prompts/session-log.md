@@ -84,6 +84,33 @@ framework for one slice edges toward the over-engineering red flag).
 and that the studio-leans-Python signal is outweighed by defensibility + the fact that
 there's no ML here. Catching it myself is the signal, not hiding that it happened.*
 
+## Entry 6 — pre-presentation gap check: the grader had no live trigger
+**Prompt (me):** scratch thread for presentation prep — "cross-check the plan we started
+with; what's pending?" Standing rule for the thread: **don't write to `/ai`, ask before
+recording anything.**
+**AI:** cross-checked PRD §6 against the built code and surfaced a real gap — the **deep
+slice had no HTTP trigger** (only tests), and the docs promised `POST /evaluations` +
+`GET /evaluations/{id}` that didn't exist; the code served `GET /applications/{id}` and an
+async worker with **no producer**.
+**Me (the fix brief):** close it with the **minimal, demo-safe** version — add a
+**synchronous** `POST /evaluations` that runs the pipeline inline and returns the full
+result in one call; **keep the async `Channel<T>`+worker path intact** and comment that
+sync = demo, async = production; **do NOT rename** `/applications` (churn) — make *docs
+match code* except the new trigger; wire committed replay fixtures so it runs zero-cred;
+confirm the t4 fabricated-auth case flows through end-to-end; add a test; align README +
+PRD §6; then clone-test and push.
+**AI:** built `GradeDemo` + the sync endpoint (commented as the demo path) + 3 committed
+fixtures + an endpoint test (74→75 green), aligned README/PRD, verified the live caught
+hallucination from a **fresh clone**, committed, and pushed. Wrote decision
+[`0003`](../decisions/0003-sync-demo-grade-endpoint.md).
+**Course-correction caught:** the post-clone shell `cd` had left the working dir stale, so
+the first `git push` ran against the *wrong repo* and reported "up-to-date." Caught it by
+checking `HEAD`/`origin/main` mismatch and re-pushed from the rubric repo explicitly —
+flagged rather than trusting the green-looking output.
+*Lesson: a "what's pending?" pass right before the demo paid for itself — the headline
+capability wasn't reachable live. And the docs-match-code call (vs renaming) kept a
+last-minute fix from becoming last-minute churn.*
+
 ---
 
 ## Open threads / things still unbuilt
