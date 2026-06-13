@@ -40,6 +40,23 @@ candidate transcript ──▶ POST /evaluations ──▶ grade ─────
 - **Everything is auditable.** Each score traces evidence → criterion → approved
   rubric version, in a dedicated audit trail.
 
+## Every failure mode has a named test
+
+The claim isn't "it handles errors" — it's that each specific way a grade can go wrong
+has a defined, default-safe behavior **and a test that fails loudly if that behavior
+regresses**. Run any row with `dotnet test --filter "FullyQualifiedName~<TestName>"`.
+
+| Failure mode | System behavior | Proving test |
+|---|---|---|
+| LLM unavailable / unparseable | criterion → `Errored`, run → `NeedsHumanGrading`, composite `null` (never a fabricated score) | `GradePipelineTests.LlmUnavailable_RoutesToHuman_NeverFabricates` |
+| **Paraphrased** evidence (true & on-topic, but not verbatim) | rejected `EvidenceNotFound`, score dropped — this is *why* matching is strict, not fuzzy | `GradePipelineTests.ParaphrasedEvidence_SemanticallyTrue_ButNotVerbatim_IsCaught` |
+| Fabricated evidence (span absent from transcript) | rejected `EvidenceNotFound`, score dropped, run → human | `GradePipelineTests.FabricatedEvidence_FlagsCriterion_AndRoutesToHuman` |
+| Hallucinated turn id (cites a turn that doesn't exist) | `EvidenceNotFound` (citation unverifiable) | `ValidateTests.CitedTurnThatDoesNotExist_IsEvidenceNotFound` |
+| Citation missing on a confident grade (no span / no turn id) | `EvidenceNotFound` — an uncited score is never trusted | `ValidateTests.MissingTurnId_OnAConfidentGrade_IsEvidenceNotFound` |
+| Abstention ("insufficient evidence") | `Abstained`, routed to human; first-class, not an error | `GradePipelineTests.Abstention_RoutesToHuman` |
+| Low confidence (even with valid evidence) | `LowConfidence`, routed to human (confidence is triage, not correctness) | `GradePipelineTests.LowConfidence_RoutesToHuman_EvenWithValidEvidence` |
+| Malformed rubric (weights don't sum to 1.0) | throws rather than emit a composite over a malformed rubric | `AggregateTests.WeightsNotSummingToOne_Throws` |
+
 ## Stack
 .NET 8 / ASP.NET Core (minimal API) · EF Core + Npgsql · in-process async grading via
 `BackgroundService` + `Channel<T>` (no heavyweight job framework) · Claude behind an
@@ -116,6 +133,15 @@ returned `id` and `GET /applications/{id}/audit` to see the full reconstructable
 (this is exactly [`examples/audit-trace-example.json`](examples/audit-trace-example.json)).
 This is the **sync demo path**; the same `GradePipeline` runs out of band on the async
 `Channel<T>` + `GradingWorker` route built for production scale.
+
+*Tenant isolation is real, not asserted.* Take the returned `id` and read it back under
+its own tenant, then under a different one — the second returns **404**, because every
+repository read is scoped by `tenantId` (the single enforcement point, CLAUDE.md §3.6):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' -H 'X-Tenant-Id: tenant-acme' http://localhost:5026/applications/<id>  # 200
+curl -s -o /dev/null -w '%{http_code}\n' -H 'X-Tenant-Id: tenant-other' http://localhost:5026/applications/<id>  # 404
+```
 
 **4. Adverse impact (four-fifths rule) tripping.** With the server running:
 

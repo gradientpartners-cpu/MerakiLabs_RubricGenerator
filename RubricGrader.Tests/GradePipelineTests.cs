@@ -50,6 +50,20 @@ public class GradePipelineTests : IDisposable
     private static object ValidGrade(string key, int score, string evidence, string turnId, string confidence = "high")
         => new { criterionKey = key, abstained = false, score, evidence, turnId, confidence };
 
+    // Like SeedGrade, but for a caller-supplied transcript — lets a test exercise a turn
+    // whose exact wording matters (e.g. a paraphrase that is NOT a verbatim substring).
+    private void SeedGradeForTurns(IReadOnlyList<TranscriptTurn> turns, RubricCriterion criterion, object response)
+    {
+        var redacted = Redact.RedactTurns(turns);
+        var prompt = GradingPrompt.Build(criterion, redacted);
+        var dir = Path.Combine(_root, GradePipeline.Purpose);
+        Directory.CreateDirectory(dir);
+        var envelope = new { purpose = GradePipeline.Purpose, prompt, response };
+        File.WriteAllText(
+            Path.Combine(dir, ReplayClaudeClient.KeyFor(prompt) + ".json"),
+            JsonSerializer.Serialize(envelope));
+    }
+
     private ReplayClaudeClient Llm => new(_root);
 
     // ---- the WOW test: determinism proof -----------------------------------------
@@ -85,6 +99,38 @@ public class GradePipelineTests : IDisposable
 
         result.Results.Single().ValidationStatus.Should().Be(ValidationStatus.EvidenceNotFound);
         result.Results.Single().Score.Should().BeNull();   // rejected score never kept
+        result.CompositeScore.Should().BeNull();
+        result.State.Should().Be(EvaluationState.NeedsHumanGrading);
+    }
+
+    // ---- the SUBTLE caught hallucination: a faithful paraphrase still fails -------
+
+    [Fact]
+    public async Task ParaphrasedEvidence_SemanticallyTrue_ButNotVerbatim_IsCaught()
+    {
+        // The realistic failure mode is NOT a wild fabrication — it's the model citing a
+        // span that is *true and on-topic* but reworded. Here the turn says the latency
+        // cut "from 800ms to 300ms"; the model cites "cut p99 latency in half" — an
+        // accurate paraphrase that is NOT a verbatim substring of the turn. Strict
+        // substring validation (CLAUDE.md §3.2: no fuzzy/semantic matching) must reject
+        // it. This is precisely WHY fuzzy matching was refused: it would let the model
+        // paraphrase its evidence and still pass, defeating the safeguard.
+        var turns = new[]
+        {
+            new TranscriptTurn("t1", "candidate",
+                "We moved to a sharded cluster and cut p99 latency from 800ms to 300ms."),
+        };
+        var tech = Crit("tech", 1.0);
+        SeedGradeForTurns(turns, tech,
+            ValidGrade("tech", 5, "cut p99 latency in half", "t1"));   // paraphrase, not verbatim
+
+        var rubric = new RubricVersion("rub-1", "tenant-1", 1, RubricStatus.Approved, new[] { tech });
+        var req = new GradeRequest("eval-1", "tenant-1", "art-1", rubric, turns, "replay");
+
+        var result = await GradePipeline.RunAsync(req, Llm);
+
+        result.Results.Single().ValidationStatus.Should().Be(ValidationStatus.EvidenceNotFound);
+        result.Results.Single().Score.Should().BeNull();
         result.CompositeScore.Should().BeNull();
         result.State.Should().Be(EvaluationState.NeedsHumanGrading);
     }
