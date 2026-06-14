@@ -113,6 +113,43 @@ last-minute fix from becoming last-minute churn.*
 
 ---
 
+## Entry 7 — comprehension pass + README consistency fix (study session, no feature work)
+**Prompt (me):** a study/interview-prep thread — walk the built code to *understand* it
+(not extend it): how the grade pipeline selects a "model", why a criterion score comes back
+`null`, what `validationStatus` means, and what the grade is evaluated against. Then test
+the API by hand with curl.
+**AI:** traced it end-to-end from the source: `modelId` is **not selected** by any logic —
+it's a hardcoded audit *label* (`GradeDemo.ModelId`), and `LiveClaudeClient` is still a
+stub; `score: null` on `ownership` is the safeguard working (`EvidenceNotFound` → score
+dropped in `GradePipeline.ToResult` → composite null → `NeedsHumanGrading`); the grade runs
+against the **pre-seeded** approved rubric `rub-backend-screen-v3`, not a generated one.
+**Found while testing:** the README's manual-test steps were inconsistent — the
+**jd/approve** examples omitted the tenant header (falling back to `tenant-demo`) while the
+**grade** example used `tenant-acme`, so a reviewer running them in sequence would
+dead-end; and the suite count was stale (74, actually 76).
+**Me (the fix brief):** minimal, doc-only — standardize **every** curl example to
+`X-Tenant-Id: tenant-acme`, bump 74→76, add one sentence clarifying the seeded vs generated
+rubric are separate flows, and add a clean nine-command "test the API" section with
+per-command descriptors + placeholder notes. **Do not touch app code; no structural
+rewrite.** Then clone-clean run all nine in sequence, build, suite green, commit + push.
+**AI:** made the three README edits, rebuilt (76 green), ran all nine commands in sequence
+under `tenant-acme` (draft → approve → grade → audit → fairness → isolation 200/404, no
+dead-ends), committed **README only**, pushed.
+**Course-correction caught:** before committing, `git status` showed a stray, *pre-existing*
+working-tree edit in `GenerationValidation.cs` — `"religio"` had been changed to
+`"religion"` in the protected-attribute denylist. Flagged it rather than sweeping it into
+the commit (the brief was docs-only). On review it's a **regression**: `"religio"` is a
+substring match that catches `religion`/`religious`/`religio-`; `"religion"` only matches
+the exact word, so "religious background" in a JD would stop being flagged.
+**Decision:** **keep `"religio"`, discard the `"religion"` edit** (`git checkout`'d the
+file). Broader denylist coverage is the safer default; the term flags for a human, never
+auto-drops, so over-matching costs nothing.
+*Lesson: reading your own code back is cheap insurance — it surfaced a doc inconsistency
+that would have tripped the reviewer and a silent denylist regression that had nothing to
+do with the task. Commit scope discipline (README only) kept the two concerns separate.*
+
+---
+
 ## Open threads / things still unbuilt
 - Repo name foregrounds "Generator" though the *deep* slice is the grader — left as-is
   since both are now built; flagged for the live review.
