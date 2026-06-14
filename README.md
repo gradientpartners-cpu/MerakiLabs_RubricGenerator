@@ -69,7 +69,7 @@ Everything below runs against **recorded LLM fixtures** — no API key, no datab
 ```bash
 # requires the .NET 8 SDK (pinned via global.json)
 dotnet build                       # restores + builds the solution
-dotnet test                        # runs the full xUnit suite (74 tests)
+dotnet test                        # runs the full xUnit suite (76 tests)
 dotnet run --project RubricGrader  # serves the API on http://localhost:5026
 ```
 
@@ -88,84 +88,68 @@ Llm__Backend=live ANTHROPIC_API_KEY=sk-... dotnet run --project RubricGrader
 > `appsettings.json` (`Password=postgres`) is a throwaway **local-dev default**, not a
 > real credential — it is only read on the opt-in `Persistence:Backend=postgres` path.
 
-## See it work — the demo moments
+## See it work — test the API
 
-**1 + 2. The grader (deep slice): a real grade, and a caught hallucination.**
-The grader is proven by its end-to-end test suite (no server needed):
+Start the server (`dotnet run --project RubricGrader`), then run these nine commands in
+order. **Every command uses the same tenant (`tenant-acme`)** so they chain cleanly and
+nothing dead-ends. (The grader is also proven without a server by
+`dotnet test --filter "FullyQualifiedName~GradePipelineTests"`.)
 
-```bash
-dotnet test --filter "FullyQualifiedName~GradePipelineTests"
-```
-
-- `DeterminismProof_SameArtifactGradedTwice_IdenticalComposite` — the **happy-path
-  grade**: per-criterion LLM scores → deterministic weighted composite `4.4`,
-  byte-for-byte reproducible (the LLM never computes the score).
-- `FabricatedEvidence_FlagsCriterion_AndRoutesToHuman` — the **caught hallucination**:
-  a cited span that isn't a verbatim substring of the transcript is rejected
-  (`EvidenceNotFound`), the score is dropped, and the run goes to
-  `NeedsHumanGrading` — it never fabricates a grade.
-
-**3. The caught hallucination, live over HTTP.** With the server running, grade the
-canonical transcript against the seeded approved rubric in **one synchronous call**:
+> **Two separate flows.** The grade demo (step 5) uses the **pre-seeded** rubric
+> `rub-backend-screen-v3`; the jd→approve flow (steps 2–4) demonstrates **generating a
+> new** rubric — they are independent, so the generated rubric does not chain into the
+> grade step.
+>
+> **Placeholders.** Replace `rub-XXXX` with the `rubric.id` returned by step 2, and
+> `eval-XXXX` with the `id` returned by step 5.
 
 ```bash
+# 1. Health — server is up + which LLM/persistence backends are active.
+curl -s http://localhost:5026/health | python3 -m json.tool
+
+# 2. Generate a DRAFT rubric from a JD — note the youthful_energy/age fairness flag.
+curl -s -X POST http://localhost:5026/jd \
+  -H 'Content-Type: application/json' -H 'X-Tenant-Id: tenant-acme' \
+  -d '{"jobDescription":"Senior backend engineer with strong distributed systems experience."}' | python3 -m json.tool
+
+# 3. Approve the draft -> Approved (replace rub-XXXX with the id from step 2).
+curl -s -X POST http://localhost:5026/rubrics/rub-XXXX/approve \
+  -H 'X-Tenant-Id: tenant-acme' -H 'X-User-Id: manasa' | python3 -m json.tool
+
+# 4. Rubric audit trail — shows the approval event (same id as step 3).
+curl -s http://localhost:5026/rubrics/rub-XXXX/audit \
+  -H 'X-Tenant-Id: tenant-acme' | python3 -m json.tool
+
+# 5. Grade a transcript against the pre-seeded rubric — the caught EvidenceNotFound hallucination.
 curl -s -X POST http://localhost:5026/evaluations \
   -H 'Content-Type: application/json' -H 'X-Tenant-Id: tenant-acme' \
-  -d '{
-    "rubricVersionId": "rub-backend-screen-v3",
-    "artifactId": "artifact-7731",
-    "turns": [
-      {"turnId":"t1","speaker":"interviewer","text":"Walk me through a system you owned end to end."},
-      {"turnId":"t2","speaker":"candidate","text":"I owned our billing pipeline for two years, from ingestion to invoicing."},
-      {"turnId":"t3","speaker":"interviewer","text":"How did you handle a major incident?"},
-      {"turnId":"t4","speaker":"candidate","text":"During a Postgres failover I coordinated the rollback and wrote the postmortem myself."},
-      {"turnId":"t5","speaker":"interviewer","text":"Tell me about scaling."},
-      {"turnId":"t6","speaker":"candidate","text":"We moved to a sharded cluster and cut p99 latency from 800ms to 300ms."}
-    ]
-  }'
+  -d '{"rubricVersionId":"rub-backend-screen-v3","artifactId":"artifact-7731","turns":[{"turnId":"t1","speaker":"interviewer","text":"Walk me through a system you owned end to end."},{"turnId":"t2","speaker":"candidate","text":"I owned our billing pipeline for two years, from ingestion to invoicing."},{"turnId":"t3","speaker":"interviewer","text":"How did you handle a major incident?"},{"turnId":"t4","speaker":"candidate","text":"During a Postgres failover I coordinated the rollback and wrote the postmortem myself."},{"turnId":"t5","speaker":"interviewer","text":"Tell me about scaling."},{"turnId":"t6","speaker":"candidate","text":"We moved to a sharded cluster and cut p99 latency from 800ms to 300ms."}]}' | python3 -m json.tool
+
+# 6. Read the stored result back (replace eval-XXXX with the id from step 5).
+curl -s http://localhost:5026/applications/eval-XXXX \
+  -H 'X-Tenant-Id: tenant-acme' | python3 -m json.tool
+
+# 7. Full audit chain — enums render as readable strings (same id as step 6).
+curl -s http://localhost:5026/applications/eval-XXXX/audit \
+  -H 'X-Tenant-Id: tenant-acme' | python3 -m json.tool
+
+# 8. Fairness — four-fifths rule; group_c flagged (anyFlagged true).
+curl -s http://localhost:5026/fairness/adverse-impact | python3 -m json.tool
+
+# 9. Tenant isolation — same id returns 200 for its tenant, 404 for another.
+curl -s -o /dev/null -w 'own:   %{http_code}\n' -H 'X-Tenant-Id: tenant-acme'  http://localhost:5026/applications/eval-XXXX
+curl -s -o /dev/null -w 'other: %{http_code}\n' -H 'X-Tenant-Id: tenant-other' http://localhost:5026/applications/eval-XXXX
 ```
 
-The response grades `communication` (4) and `technical_depth` (5) from verbatim quotes,
-but the `ownership` criterion cites *"I personally rebuilt the entire authentication
-system"* — absent from turn t4 — so it is rejected (`EvidenceNotFound`), its score
-dropped, `compositeScore` is `null`, and `state` is `NeedsHumanGrading`. Take the
-returned `id` and `GET /applications/{id}/audit` to see the full reconstructable chain
-(this is exactly [`examples/audit-trace-example.json`](examples/audit-trace-example.json)).
-This is the **sync demo path**; the same `GradePipeline` runs out of band on the async
-`Channel<T>` + `GradingWorker` route built for production scale.
+**What step 5 proves:** it grades `communication` (4) and `technical_depth` (5) from
+verbatim quotes, but the `ownership` criterion cites *"I personally rebuilt the entire
+authentication system"* — absent from turn t4 — so it is rejected (`EvidenceNotFound`),
+its score dropped, `compositeScore` is `null`, and `state` is `NeedsHumanGrading`. This
+is the **sync demo path**; the same `GradePipeline` runs out of band on the async
+`Channel<T>` + `GradingWorker` route built for production scale. The step-7 audit is
+exactly [`examples/audit-trace-example.json`](examples/audit-trace-example.json).
 
-*Tenant isolation is real, not asserted.* Take the returned `id` and read it back under
-its own tenant, then under a different one — the second returns **404**, because every
-repository read is scoped by `tenantId` (the single enforcement point, CLAUDE.md §3.6):
-
-```bash
-curl -s -o /dev/null -w '%{http_code}\n' -H 'X-Tenant-Id: tenant-acme' http://localhost:5026/applications/<id>  # 200
-curl -s -o /dev/null -w '%{http_code}\n' -H 'X-Tenant-Id: tenant-other' http://localhost:5026/applications/<id>  # 404
-```
-
-**4. Adverse impact (four-fifths rule) tripping.** With the server running:
-
-```bash
-curl http://localhost:5026/fairness/adverse-impact
-```
-
-Computes the selection rate per group over seeded synthetic data and flags any group
-below 80% of the top group's rate. `group_c` (ratio 0.50) trips the flag; `anyFlagged`
-is `true`. (The endpoint computes over the seed only — there is no `rubric_version_id`
-parameter; per-rubric slicing stays design-doc-only, DESIGN.md §11.)
-
-**5. (bonus) A proxy attribute caught at rubric approval.** Generate a draft rubric,
-then approve it — the protected-attribute denylist flags a criterion and the flag is
-resurfaced at approval so the human gate never signs off blind:
-
-```bash
-# generate a draft (note the rubric.id and fairnessFlags in the response)
-curl -s -X POST http://localhost:5026/jd -H 'Content-Type: application/json' \
-  -d '{"jobDescription":"Senior backend engineer with strong distributed systems experience."}'
-
-# approve it (use the id from above); the response repeats fairnessFlags for the approver
-curl -X POST http://localhost:5026/rubrics/<rubric-id>/approve -H 'X-User-Id: you@example.com'
-```
-
-Both responses carry `fairnessFlags: [{ "criterionKey": "youthful_energy",
-"matchedTerm": "age" }]` — flagged, never auto-dropped.
+**What steps 2–4 prove:** the protected-attribute denylist flags a criterion
+(`fairnessFlags: [{ "criterionKey": "youthful_energy", "matchedTerm": "age" }]`) and the
+flag is resurfaced at approval, so the human gate never signs off blind — flagged, never
+auto-dropped.
