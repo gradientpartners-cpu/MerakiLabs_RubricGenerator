@@ -77,6 +77,11 @@ dotnet run --project RubricGrader  # serves the API on http://localhost:5026
 generator and fairness demos ship with committed fixtures under
 `RubricGrader/Fixtures/`. A clean clone has everything it needs.
 
+> **Demo console.** A thin, single-file demo UI lives at [`demo/index.html`](demo/index.html) —
+> start the server, then open that file in a browser to click through all six steps
+> (health → generate → approve → grade → audit → fairness). It is a presentation aid over
+> the existing API, not the product frontend (see `ai/decisions/0005-demo-console.md`).
+
 To call Claude (`claude-sonnet-4-6`) for real instead of replaying fixtures, opt in
 via env vars (the only path that needs a key):
 

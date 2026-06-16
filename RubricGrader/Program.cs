@@ -56,7 +56,17 @@ else
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantContext, HeaderTenantContext>();
 
+// DEMO-ONLY CORS. The static demo console (demo/index.html) is opened from a file:// or
+// other origin, so the browser needs an Access-Control-Allow-Origin header to call this
+// API. There are no cookies/credentials here (tenant is a plain header), so any-origin is
+// safe for a local demo. This is the ONLY concession made for the demo UI; production auth
+// would scope this to known origins. See ai/decisions/0005-demo-console.md.
+builder.Services.AddCors(o => o.AddPolicy("demo", p =>
+    p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+
 var app = builder.Build();
+
+app.UseCors("demo");
 
 // Create the schema on startup when running against a real database.
 if (usePostgres)
